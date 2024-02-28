@@ -1,6 +1,10 @@
+
+# %%
+
 import numpy as np 
 import math as m
 import matplotlib.pyplot as plt 
+from scipy.integrate import solve_ivp
 
 class auc(): 
     def __init__(self): 
@@ -122,22 +126,54 @@ class auc():
 
         return diameter, length, wheel_weight
     
-    def quarter_car_model(self, t, x, damping_rate, spring_rate, tire_spring_rate, road_input): 
+    def quarter_car_model_step(self, t, x, m1, m2, damping_rate, spring_rate, tire_spring_rate, road_input, step_time): 
         # quarter car mode assumes two masses (body and tire)
         # tire has a spring, body has spring and damper 
-        m1 = self.auc_mass/4 - self.unsprung_mass
-        m2 = self.unsprung_mass
-        x1_dot =  x[0] 
-        x1 = x[1]
-        x2_dot= x[2]
-        x2 = x[3]
+        x1_dot, x1, x2_dot, x2 = x
+
+        # step action
+        if t >= step_time: 
+            y = road_input
+        else: 
+            y = 0
+
         vel = np.array([[x1_dot], [x2_dot]])
         pos = np.array([[x1], [x2]])
         M = np.array([[m1, 0], [0, m2]])
         C = np.array([[damping_rate, -damping_rate], [-damping_rate, damping_rate]])
         K = np.array([[spring_rate, -spring_rate], [-spring_rate, spring_rate+tire_spring_rate]])
-        F = np.array([[0], [tire_spring_rate*road_input]])
+        F = np.array([[0], [tire_spring_rate*y]])
         acc = np.matmul(np.linalg.inv(M), -np.matmul(C, vel) - np.matmul(K, pos) + F)
-        x_dot = np.array([acc[0, 0], acc[1, 0], acc[2, 0], acc[3, 0]])
+        x_dot = np.array([acc[0, 0], x1_dot, acc[1, 0], x2_dot])
 
         return x_dot
+    
+    def init_parameters(self): 
+        m1 = self.auc_mass/4 - self.unsprung_mass
+        m2 = self.unsprung_mass
+        spring_rate=161*10**3
+        tire_spring_rate=350*10**3
+        damping_rate = 2*m.sqrt(spring_rate*(self.auc_mass/4 - self.unsprung_mass))
+        road_input=1
+        step_time=0
+        t_span=(0, 5)
+        x0 = np.array([0, 0, 0, 0])
+
+        params = (m1, m2, damping_rate, spring_rate, tire_spring_rate, road_input, step_time)
+        inCon = [t_span, x0]
+        
+        return params, inCon
+    
+    def plot_step(self, sol): 
+        with plt.xkcd(): 
+            plt.figure()
+            plt.plot(sol.t, sol.y[1, :], 'b--', sol.t, sol.y[3, :], 'r--')
+            plt.grid(True)
+            plt.xlabel('time (s)')
+            plt.ylabel('Displacement (m)')
+            plt.title('Step reponse of a quarter car model')
+            plt.show()
+        
+        
+
+# %%
