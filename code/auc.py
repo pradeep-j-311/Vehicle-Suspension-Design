@@ -111,20 +111,16 @@ class auc():
         else: 
             return wheel_rate/1000
         
-    def torsion_bar(self, spring_rate=161*10**3, shear_modulus=8*10**10, allowable_stress=7*10**9, lever_arm=0.02, front=True): 
+    def torsion_bar_solid(self, wheel_load, spring_rate=161*10**3, shear_modulus=8*10**10, allowable_stress=7*10**9, lever_arm=0.02, front=True): 
         # angle of twist = TL/JG
         # for a circular shaft we J = pi.d^4/32 (solid shaft)
-        if front: 
-            wheel_weight = 9.81*(self.auc_mass*self.safety_factor + self.uld_mass + self.i2rstuff)*self.front_weight_bias/2
-        else: 
-            wheel_weight = 9.81*(self.auc_mass*self.safety_factor + self.uld_mass + self.i2rstuff)*(1 - self.front_weight_bias)/2
-
-        A = allowable_stress/(16*wheel_weight)
+       
+        A = allowable_stress/(16*wheel_load)
         diameter = (lever_arm/(A*np.pi))**(1/3)
         B = 0.098*shear_modulus/spring_rate
         length = (B*diameter**4)/lever_arm**2
 
-        return diameter, length, wheel_weight
+        return diameter, length, wheel_load
     
     def quarter_car_model_step(self, t, x, m1, m2, damping_rate, spring_rate, tire_spring_rate, road_input, step_time): 
         # quarter car mode assumes two masses (body and tire)
@@ -173,7 +169,18 @@ class auc():
             plt.ylabel('Displacement (m)')
             plt.title('Step reponse of a quarter car model')
             plt.show()
+            
+    def hollow_torsion_bar(self, wheel_load, OD, ID, allowable_shear_stress=7*10**9, lever_arm=0.05, shear_modulus=80*10**9, spring_rate=161*10**3): 
+        J = np.pi*(OD**4 - ID**4)/2
+        # max shear stress will occur on the OD 
+        max_torque = allowable_shear_stress*J/lever_arm  
+        applied_torsion = wheel_load*lever_arm 
         
-        
+        if applied_torsion > max_torque: 
+            return "Applied torsion exceeds maximum recommended torsion on chosen bar."
+        else: 
+            L = (shear_modulus*np.pi*(OD**4 - ID**4))/(spring_rate*16*lever_arm**2)
+            return L 
+
 
 # %%
