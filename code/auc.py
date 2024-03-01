@@ -102,10 +102,10 @@ class auc():
         return wheel_loads/2
     
     def suspension_specs(self, accel_g, Nmm = False): 
-        # the spring rate for the suspension will be determined by the maxiumum travel allowed for the suspension under maxiumum load 
-        max_load = max(self.load_transfer(accel_g))[0]
+        # the spring rate for the suspension will be determined by the maxsiumum travel allowed for the suspension under maxsiumum load 
+        maxs_load = maxs(self.load_transfer(accel_g))[0]
         min_load = min(self.load_transfer(accel_g, loaded=False))[0]
-        wheel_rate = (max_load - min_load)/self.travel_length
+        wheel_rate = (maxs_load - min_load)/self.travel_length
 
         if not Nmm: 
             return wheel_rate
@@ -173,12 +173,12 @@ class auc():
             
     def hollow_torsion_bar(self, wheel_load, OD, ID, allowable_shear_stress=7*10**9, lever_arm=0.05, shear_modulus=80*10**9, spring_rate=161*10**3): 
         J = np.pi*(OD**4 - ID**4)/2
-        # max shear stress will occur on the OD 
-        max_torque = allowable_shear_stress*J/lever_arm  
+        # maxs shear stress will occur on the OD 
+        maxs_torque = allowable_shear_stress*J/lever_arm  
         applied_torsion = wheel_load*lever_arm 
         
-        if applied_torsion > max_torque: 
-            return "Applied torsion exceeds maximum recommended torsion on chosen bar."
+        if applied_torsion > maxs_torque: 
+            return "Applied torsion exceeds maxsimum recommended torsion on chosen bar."
         else: 
             L = (shear_modulus*np.pi*(OD**4 - ID**4))/(spring_rate*16*lever_arm**2)
             return L 
@@ -196,8 +196,7 @@ class auc():
         if t >= step_time: 
             y1 = road_input
         else: 
-            y1 = 0
-            
+            y1 = 0 
         if t >= step_time + self.wheelbase/speed: 
             y2 = road_input
         else: 
@@ -219,7 +218,7 @@ class auc():
         
         xddot = np.matmul(np.linalg.inv(M), -np.matmul(C, vel) - np.matmul(K, pos) + F)
         
-        xDot = np.array([xddot[0, 0], xBody_dot, xddot[1, 0], thetadot, xddot[2, 0], x1_dot, xddot[3, 0], x2_dot])
+        xDot = np.array([xBody_dot, xddot[0, 0], thetadot, xddot[1, 0], x1_dot, xddot[2, 0], x2_dot, xddot[3, 0]])
         
         return xDot 
         
@@ -247,5 +246,31 @@ class auc():
         inCon = [t_span, x0]
         
         return params, inCon 
+    
+    def plot_pitch_step(self, sol): 
+        with plt.xkcd(): 
+            fig, axs = plt.subplots(2, 2, figsize=(22, 15))
+            
+            axs[0,0].plot(sol.t, sol.y[0, :], 'k--', sol.t, sol.y[4, :], 'r--', sol.t, sol.y[6, :])
+            axs[0,0].set_xlabel('time (s)')
+            axs[0,0].set_ylabel('Displacement (m)')
+            axs[0,0].set_title('Wheels/Body vertical step reponse of a half car pitch model')
+            
+            axs[0,1].plot(sol.t, sol.y[2], 'g--')
+            axs[0,1].set_xlabel('time (s)')
+            axs[0,1].set_ylabel('Body angle, (rad)')
+            axs[0,1].set_title('Body angle step reponse of a half car pitch model')
+            
+            axs[1,0].plot(sol.t, sol.y[1, :], 'k--', sol.t, sol.y[5, :], 'r--', sol.t, sol.y[7, :], 'b--')
+            axs[1,0].set_xlabel('time (s)')
+            axs[1,0].set_title('Wheel/Body velocities step response of a half car pitch model')
+            axs[1,0].set_ylabel('Velocity (m/s)')
+            
+            axs[1,1].plot(sol.t, sol.y[3, :], 'g--')
+            axs[1,1].set_xlabel('time (s)')
+            axs[1,1].set_ylabel('Angular velocity (rad/s)')
+            axs[1,1].set_title('Body angular velocity step response of a half car pitch model')
+            
+            plt.show()
 
 # %%
