@@ -101,10 +101,11 @@ class auc():
     
         return wheel_loads/2
     
-    def suspension_specs(self, wheel_loads, Nmm = False): 
+    def suspension_specs(self, accel_g, Nmm = False): 
         # the spring rate for the suspension will be determined by the maxiumum travel allowed for the suspension under maxiumum load 
-        max_load = max(wheel_loads)[0]
-        wheel_rate = max_load/self.travel_length
+        max_load = max(self.load_transfer(accel_g))[0]
+        min_load = min(self.load_transfer(accel_g, loaded=False))[0]
+        wheel_rate = (max_load - min_load)/self.travel_length
 
         if not Nmm: 
             return wheel_rate
@@ -144,10 +145,10 @@ class auc():
 
         return x_dot
     
-    def init_parameters(self): 
+    def init_parameters_quarter_car(self): 
         m1 = self.auc_mass/4 - self.unsprung_mass
         m2 = self.unsprung_mass
-        spring_rate=161*10**3
+        spring_rate=129*10**3
         tire_spring_rate=350*10**3
         damping_rate = 2*m.sqrt(spring_rate*(self.auc_mass/4 - self.unsprung_mass))
         road_input=1
@@ -155,10 +156,10 @@ class auc():
         t_span=(0, 5)
         x0 = np.array([0, 0, 0, 0])
 
-        params = (m1, m2, damping_rate, spring_rate, tire_spring_rate, road_input, step_time)
+        parameters = (m1, m2, damping_rate, spring_rate, tire_spring_rate, road_input, step_time)
         inCon = [t_span, x0]
         
-        return params, inCon
+        return parameters, inCon
     
     def plot_step(self, sol): 
         with plt.xkcd(): 
@@ -182,5 +183,69 @@ class auc():
             L = (shear_modulus*np.pi*(OD**4 - ID**4))/(spring_rate*16*lever_arm**2)
             return L 
 
+    def pitch_car_model_step(self, t, x, mBody, m1, m2, Iz, damping_rates, spring_rates, tire_spring_rates, road_input, step_time, speed): 
+        
+        xBody, xBody_dot, theta, thetadot, x1, x1_dot, x2, x2_dot = x
+        c1, c2 = damping_rates
+        k1, k2 = spring_rates
+        kt1, kt2 = tire_spring_rates
+        a1 = self.wheelbase - self.front_weight_bias*self.wheelbase
+        a2 = self.wheelbase - a1
+        
+        # step input for the pitch model (varies by speed)
+        if t >= step_time: 
+            y1 = road_input
+        else: 
+            y1 = 0
+            
+        if t >= step_time + self.wheelbase/speed: 
+            y2 = road_input
+        else: 
+            y2 = 0 
+            
+        M = np.array([[mBody, 0, 0, 0], [0, Iz, 0, 0], [0, 0, m1, 0], [0, 0, 0, m2]])
+        C = np.array([[c1+c2, (a2*c2) - (a1*c1), -c1, -c2], 
+                      [(a2*c2)-(a1*c1), c1*(a1**2) + c2*(a2**2), a1*c1, -a2*c2], 
+                      [-c1, a1*c1, c1, 0], 
+                     [-c2, -a2*c2, 0, c2]])
+        K = np.array([[k1 + k2, (a2*k2) - (a1*k1), -k1, -k2],
+                      [(a2*k2) - (a1*k1), k1*(a1**2) + k2*(a2**2), a1*k1, -a2*k2],
+                      [-k1, a1*k1, k1 + kt1, 0],
+                    [-k2, -a2*k2, 0, k2+kt2]])
+        F = np.array([[0], [0], [y1*kt1], [y2*kt2]])
+        
+        pos = np.array([[xBody], [theta], [x1], [x2]])
+        vel = np.array([[xBody_dot], [thetadot], [x1_dot], [x2_dot]])
+        
+        xddot = np.matmul(np.linalg.inv(M), -np.matmul(C, vel) - np.matmul(K, pos) + F)
+        
+        xDot = np.array([xddot[0, 0], xBody_dot, xddot[1, 0], thetadot, xddot[2, 0], x1_dot, xddot[3, 0], x2_dot])
+        
+        return xDot 
+        
+    def init_parameters_pitch(self, speed, loaded = True): 
+        kt1 = kt2 = 350*10**3
+        k1 = k2 = 129*10**3 
+        m1 = m2 = 50 
+        if loaded: mBody = (self.auc_mass + self.uld_mass - 4*self.unsprung_mass)/2 
+        else: mBody = (self.auc_mass -4*self.unsprung_mass)/2 
+        c1 = c2 = m.sqrt(k1*mBody/2)*2*0.2
+        Iz = (1/12)*mBody*((2*self.cg)**2 + self.wheelbase**2)
+        road_input = 0.5 
+        step_time = 0
+        
+        # gather inputs 
+        damping_rates = [c1, c2]
+        spring_rates = [k1, k2]
+        tire_spring_rates = [kt1, kt2]
+        
+        # gather initial conditions 
+        x0 = np.array([0,0,0,0,0,0,0,0])
+        t_span = (0, 5)
+        
+        params = (mBody, m1, m2, Iz, damping_rates, spring_rates, tire_spring_rates, road_input, step_time, speed)
+        inCon = [t_span, x0]
+        
+        return params, inCon 
 
 # %%
